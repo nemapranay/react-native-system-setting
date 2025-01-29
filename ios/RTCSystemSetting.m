@@ -178,14 +178,29 @@ RCT_EXPORT_METHOD(activeListener:(NSString *)type resolve:(RCTPromiseResolveBloc
     NSString *url = [setting objectForKey:service];
     dispatch_sync(dispatch_get_main_queue(), ^{
         [[UIApplication sharedApplication] openURL:[NSURL URLWithString:url] options:[NSDictionary new] completionHandler:nil];
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(applicationWakeUp:)
-                                                     name:UIApplicationWillEnterForegroundNotification
-                                                   object:nil];
+        AVAudioSession* audioSession = [AVAudioSession sharedInstance];
+
+        [audioSession setActive:YES error:nil];
+        [audioSession addObserver:self
+                       forKeyPath:@"outputVolume"
+                          options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld
+                          context:nil];
     });
 #else
     NSLog(@"Fail to open [%@]. These APIs which start with 'switch*()' will cause a rejection from App Store, and you can use these APIs only when you distribute app outside App Store, see see https://github.com/c19354837/react-native-system-setting/blob/master/iOS.md", service);
 #endif
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *,id> *)change context:(void *)context
+{
+
+    if (object == [AVAudioSession sharedInstance] && [keyPath isEqualToString:@"outputVolume"]) {
+        float newValue = [change[@"new"] floatValue];
+        //float old = [change[@"old"] floatValue];
+        if (hasListeners) {
+                [self sendEventWithName:@"EventVolume" body:@{@"value": [NSNumber numberWithFloat:newValue]}];
+        }
+    }
 }
 
 -(BOOL)isWifiEnabled{
